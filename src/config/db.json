@@ -1,0 +1,75 @@
+{
+  "users": [
+    {
+      "id": "admin-1",
+      "fullName": "Safar Aliyev",
+      "email": "safaraliyevziya@gmail.com",
+      "phone": "+994500000000",
+      "password": "$2b$10$088Bk8.yF/.mslw86CJ6lucB92hCp5F.S8kq/4OTB5fvuBJtAb.LW",
+      "role": "admin",
+      "createdAt": "2026-08-18T14:27:02.241Z"
+    },
+    {
+      "id": "1787063222370.0652",
+      "fullName": "Test User",
+      "email": "testuser@example.com",
+      "phone": "+994501234567",
+      "password": "$2b$10$rOvvQNcHrVC7PU7JilWdpOHca0KI.x91C4DtwgDP4t/Og0m2qbkmq",
+      "role": "user",
+      "createdAt": "2026-08-18T14:27:02.370Z"
+    },
+    {
+      "id": "1787063222512.1482",
+      "fullName": "Phone User",
+      "email": "phoneuser@example.com",
+      "phone": "+994507778899",
+      "password": "$2b$10$JrFCSQRPtsDV8eRNyKNkdu62VSl5znuk7EeGRXbO9PsIKuxRd1t.C",
+      "role": "user",
+      "createdAt": "2026-08-18T14:27:02.512Z"
+    },
+    {
+      "id": "1787063222731.7966",
+      "fullName": "No Access User",
+      "email": "noaccess@example.com",
+      "phone": "+994505554433",
+      "password": "$2b$10$b/EfCLNnPH/l/LHt3RA4O.2gFXZvL4aw7j5KB.w/xDf1.PsXRE5h.",
+      "role": "user",
+      "createdAt": "2026-08-18T14:27:02.731Z"
+    },
+    {
+      "id": "1787063635930.4343",
+      "fullName": "Ziya Safaraliyev",
+      "email": "sallyleon0703@gmail.com",
+      "phone": "553436634",
+      "password": "$2b$10$bG8lZvKhf/i2SyXXN/H4ge9Un/CMR//4AjE.gExnePJctSPssXcAi",
+      "role": "user",
+      "createdAt": "2026-08-18T14:33:55.930Z"
+    }
+  ],
+  "listings": [
+    {
+      "id": "1787063222587.6055",
+      "title": "Bakı mənzil axtarışı",
+      "description": "Mərkəzə yaxın, rahat 2 otaqlı mənzil",
+      "price": 1200,
+      "category": "apartment",
+      "city": "Bakı",
+      "location": "Nərimanov",
+      "listingType": "rent",
+      "owner": "admin-1",
+      "createdAt": "2026-08-18T14:27:02.587Z"
+    },
+    {
+      "id": "1787063222664.04",
+      "title": "Admin deyeri",
+      "description": "Admin tərəfindən əlavə olunub",
+      "price": 1800,
+      "category": "villa",
+      "city": "Bakı",
+      "location": "",
+      "listingType": "rent",
+      "owner": "admin-1",
+      "createdAt": "2026-08-18T14:27:02.664Z"
+    }
+  ]
+}

@@ -25,4 +25,15 @@ const protect = (req, res, next) => {
   }
 };
 
-module.exports = { protect };
+const requireAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Admin access required to publish listings'
+    });
+  }
+
+  return next();
+};
+
+module.exports = { protect, requireAdmin };
