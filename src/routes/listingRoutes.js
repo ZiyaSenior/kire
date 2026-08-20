@@ -79,7 +79,8 @@ router.get('/', (req, res) => {
  *       201:
  *         description: Listing created
  */
-router.post('/', protect, requireAdmin, (req, res) => {
+// Allow any authenticated user to create a listing (frontend will enforce further rules)
+router.post('/', protect, (req, res) => {
   const { title, description, price, category, city, location, listingType } = req.body;
 
   if (!title || !price || !category) {
@@ -107,6 +108,34 @@ router.post('/', protect, requireAdmin, (req, res) => {
     message: 'Listing created successfully',
     data: newListing
   });
+});
+
+/**
+ * Suggest a category based on title/description keywords
+ */
+router.get('/suggest-category', (req, res) => {
+  const text = normalizeSearchText(req.query.text || '');
+
+  // Simple keyword-to-category mapping. Expand as needed.
+  const mapping = [
+    { keywords: ['mənzil', 'ev', 'otaq', 'villa', 'apart'], category: 'real-estate' },
+    { keywords: ['avtomobil', 'bmw', 'mers', 'toyota', 'nəqliyyat', 'maşın'], category: 'vehicles' },
+    { keywords: ['macbook', 'laptop', 'telefon', 'kamera', 'elektron', 'pc'], category: 'electronics' },
+    { keywords: ['stol', 'divan', 'mebel', 'bağ', 'bag'], category: 'home-garden' },
+    { keywords: ['paltar', 'geyim', 'don', 'accessor', 'aksesuar'], category: 'fashion-events' },
+    { keywords: ['kitab', 'roman', 'jurnal', 'hobbi', 'oyun'], category: 'books-hobbies' },
+    { keywords: ['servis', 'xidmət', 'alət', 'avadanlıq'], category: 'services-industrial' },
+  ];
+
+  for (const m of mapping) {
+    for (const kw of m.keywords) {
+      if (text.includes(kw)) {
+        return res.json({ success: true, category: m.category });
+      }
+    }
+  }
+
+  return res.json({ success: true, category: 'real-estate' });
 });
 
 module.exports = { listingRoutes: router };

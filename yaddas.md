@@ -49,3 +49,18 @@ git push origin main
 3. Browserda localhost linkini aç.
 4. Dəyişikliklərdə bu faylı yenilə.
 5. GitHub-a push et.
+
+## 8) 2026-08-20 son vəziyyət
+- İş qovluğu Windows-da: `C:\Users\DELL\kire`
+- Frontend qovluğu: `C:\Users\DELL\kire\frontend`
+- Frontend localhost: http://127.0.0.1:5173/
+- Frontend Vite development server-i işləyir: `npm run dev -- --host 127.0.0.1`
+- `AuthContext.jsx` daxilində `login(identifier, password)` iki arqument gözləyir.
+- Əvvəlki xəta: `identifier` obyekt kimi ötürüldüyünə görə `(identifier || '').trim is not a function` xətası yaranırdı.
+- Düzəliş: `frontend/src/App.tsx` daxilində çağırış `login(authForm.identifier, authForm.password)` formasına salındı.
+- Yoxlama: `Push-Location .\kire\frontend; npm run build; Pop-Location` uğurla tamamlandı.
+- Davam etmək üçün PowerShell:
+  `Set-Location C:\Users\DELL\kire\frontend`
+  `npm run dev -- --host 127.0.0.1`
+- Repo branch-i: `main`
+- Repo: https://github.com/ZiyaSenior/kire.git

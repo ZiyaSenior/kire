@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
-import { mockListings, type ListingCategory, type ListingItem, type ListingPeriod } from './data/mockListings'
+import { mockListings as defaultMockListings } from './data/mockListings'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import ErrorBoundary from './components/ErrorBoundary'
+import FilterBar from './components/FilterBar'
+import ListingGrid from './components/ListingGrid'
+import NewListingModal from './components/NewListingModal'
+
+// Defensive wrapper for mock listings
+const safeMockListings = Array.isArray(defaultMockListings) ? defaultMockListings : []
 
 const categories = [
   { key: 'all', icon: '🧭', label: 'Hamısı' },
@@ -190,18 +198,10 @@ const emptyListingForm = {
   },
 }
 
-function App() {
-  const normalizedInitialListings = useMemo(
-    () =>
-      mockListings.map((listing) => ({
-        ...listing,
-        tags: Array.isArray(listing.tags) ? listing.tags : [],
-        metadata: listing.metadata ?? {},
-      })),
-    [],
-  )
+function AppInner() {
+  const normalizedInitialListings = useMemo(() => safeMockListings.map((listing) => ({ ...(listing || {}), tags: Array.isArray(listing?.tags) ? listing.tags : [], metadata: listing?.metadata ?? {} })), [])
 
-  const [allListings, setAllListings] = useState<ListingItem[]>(normalizedInitialListings)
+  const [allListings, setAllListings] = useState(() => normalizedInitialListings)
   const [selectedCategory, setSelectedCategory] = useState<'all' | ListingCategory>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPeriod, setSelectedPeriod] = useState<'all' | ListingPeriod>('all')
@@ -216,6 +216,12 @@ function App() {
   const [listingForm, setListingForm] = useState(emptyListingForm)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [showLoginModal, setShowLoginModal] = useState(false)
+  const [authMode, setAuthMode] = useState('login')
+  const [authForm, setAuthForm] = useState({ fullName: '', identifier: '', password: '', phone: '' })
+  const [authError, setAuthError] = useState('')
+
+  const { isAuthenticated, login, register } = useAuth() || {}
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -293,64 +299,26 @@ function App() {
     setter((prev) => ({ ...prev, [key]: value }))
   }
 
-  const handleCreateListing = () => {
-    const title = listingForm.title.trim()
-    const description = listingForm.description.trim()
-    const price = Number(listingForm.price)
-
-    if (!title || !description || !Number.isFinite(price) || price <= 0) {
-      setError('Başlıq, təsvir və düzgün qiymət tələb olunur.')
-      return
+  const handleCreateListing = (newItem) => {
+    // robust append
+    try {
+      if (!newItem || !newItem.title) {
+        setError('Etibarsız elan məlumatı')
+        return
+      }
+      setAllListings((prev) => [newItem, ...(Array.isArray(prev) ? prev : [])])
+      setShowModal(false)
+      setListingForm(emptyListingForm)
+      setWizardStep(1)
+      setError('')
+      setSuccess('Yeni elan uğurla əlavə edildi.')
+    } catch (err) {
+      console.error('append error', err)
+      setError('Elanı əlavə edərkən xəta baş verdi')
     }
-
-    const categoryMeta = categoryConfig[listingForm.category]
-    const createdListing: ListingItem = {
-      id: Date.now(),
-      title,
-      description,
-      price,
-      period: listingForm.period,
-      category: listingForm.category,
-      subcategory: categoryMeta.label,
-      city: listingForm.city,
-      district: listingForm.district || 'Mərkəz',
-      address: `${listingForm.district || 'Mərkəz'} küç., ${listingForm.city}`,
-      image:
-        listingForm.image ||
-        'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
-      createdAt: new Date().toISOString(),
-      isVIP: true,
-      tags: [categoryMeta.label, listingForm.city, listingForm.district || 'Mərkəz'],
-      metadata: {
-        ...(listingForm.metadata ?? {}),
-      },
-    }
-
-    setAllListings((prev) => [createdListing, ...prev])
-    setShowModal(false)
-    setListingForm(emptyListingForm)
-    setWizardStep(1)
-    setError('')
-    setSuccess('Yeni elan uğurla əlavə edildi.')
   }
 
-  const validateStep = () => {
-    const categoryFields = dynamicFormFields
-    const required = categoryFields.filter((field) => field.required)
-    const missing = required.some((field) => {
-      const value = listingForm.metadata[field.key]
-      return !String(value ?? '').trim()
-    })
-
-    if (!listingForm.title.trim() || !listingForm.description.trim() || !listingForm.price || missing) {
-      setError('Zəhmət olmasa vacib sahələri doldurun.')
-      return false
-    }
-
-    setError('')
-    return true
-  }
-
+  // (legacy handlers removed — creation handled by NewListingModal)
   const renderDynamicFilterInputs = () => {
     if (!dynamicFilterFields.length) return null
 
@@ -428,9 +396,8 @@ function App() {
       </div>
     )
   }
-
-  return (
-    <div className="page-shell">
+    return (
+      <div className="page-shell">
       <header className="topbar container">
         <div className="brand-wrap">
           <div className="brand-mark">M</div>
@@ -447,10 +414,13 @@ function App() {
           <a href="#publish">Yayımla</a>
         </nav>
 
-        <div className="nav-actions">
-          <button type="button" className="btn btn-ghost">Giriş</button>
-          <button type="button" className="btn btn-primary" onClick={() => setShowModal(true)}>Yeni Elan</button>
-        </div>
+          <div className="nav-actions">
+            <button type="button" className="btn btn-ghost" onClick={() => setShowLoginModal(true)}>Daxil ol / Qeydiyyat</button>
+            <button type="button" className="btn btn-primary" onClick={() => {
+              if (!isAuthenticated) setShowLoginModal(true)
+              else setShowModal(true)
+            }}>+ Yeni Elan</button>
+          </div>
       </header>
 
       <main>
@@ -553,97 +523,20 @@ function App() {
             </div>
           </div>
 
-          <div className="filter-panel">
-            <div className="filter-row">
-              <label className="field-block">
-                <span>Kirayə tipi</span>
-                <select value={selectedPeriod} onChange={(event) => setSelectedPeriod(event.target.value as 'all' | ListingPeriod)}>
-                  {periodOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option === 'all' ? 'Hamısı' : option}
-                    </option>
-                  ))}
-                </select>
-              </label>
+          <FilterBar filters={{ search: searchTerm, category: selectedCategory, city, minPrice: priceMin, maxPrice: priceMax, period: selectedPeriod }} onChange={(f) => {
+            setSearchTerm(f.search || '')
+            setSelectedCategory(f.category || 'all')
+            setCity(f.city || 'Bakı')
+            setPriceMin(f.minPrice || '')
+            setPriceMax(f.maxPrice || '')
+            setSelectedPeriod(f.period || 'all')
+          }} />
 
-              <label className="field-block">
-                <span>Min qiymət</span>
-                <input type="number" value={priceMin} onChange={(event) => setPriceMin(event.target.value)} placeholder="0" />
-              </label>
-
-              <label className="field-block">
-                <span>Max qiymət</span>
-                <input type="number" value={priceMax} onChange={(event) => setPriceMax(event.target.value)} placeholder="5000" />
-              </label>
-            </div>
-
-            <div className="filter-row">
-              <label className="field-block">
-                <span>Rayon</span>
-                <input type="text" value={district} onChange={(event) => setDistrict(event.target.value)} placeholder="Nəsimi" />
-              </label>
-            </div>
-
-            {renderDynamicFilterInputs()}
-
-            <div className="amenities-row">
-              {amenityPool.map((amenity) => (
-                <label key={amenity} className="checkbox-pill">
-                  <input
-                    type="checkbox"
-                    checked={selectedAmenities.includes(amenity)}
-                    onChange={(event) => {
-                      const checked = event.target.checked
-                      setSelectedAmenities((prev) =>
-                        checked ? [...prev, amenity] : prev.filter((item) => item !== amenity),
-                      )
-                    }}
-                  />
-                  <span>{amenity}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="listing-grid">
-            {filteredListings.length === 0 ? (
-              <div className="empty-state-card">
-                <h3>Bu kateqoriyada heç bir elan tapılmadı</h3>
-                <p>Filtrləri dəyişdirin və ya başqa kateqoriya seçin.</p>
-              </div>
-            ) : (
-              filteredListings.map((listing) => (
-                <article className="listing-card" key={listing.id}>
-                  <div className="listing-image-wrap">
-                    <img src={listing.image} alt={listing.title} loading="lazy" className="listing-image" />
-                    <span className="listing-badge">{listing.period}</span>
-                    {listing.isVIP && <span className="vip-badge">VIP</span>}
-                  </div>
-                  <div className="listing-body">
-                    <div className="listing-head">
-                      <h3>{listing.title}</h3>
-                      <span className="listing-price">₼ {listing.price.toLocaleString()}</span>
-                    </div>
-                    <p className="location">
-                      {listing.district} • {listing.city}
-                    </p>
-                    <p className="meta">
-                      {listing.subcategory} • {listing.tags.slice(0, 2).join(' • ')}
-                    </p>
-                    <p className="description">{listing.description}</p>
-                    <div className="amenity-list">
-                      {listing.tags.slice(0, 3).map((tag) => (
-                        <span key={`${listing.id}-${tag}`}>{tag}</span>
-                      ))}
-                    </div>
-                    <div className="listing-footer">
-                      <span>{listing.address}</span>
-                      <button type="button" className="btn btn-primary small">Ətraflı</button>
-                    </div>
-                  </div>
-                </article>
-              ))
-            )}
+          <div style={{ padding: 12 }}>
+            <ListingGrid items={allListings} filters={{ search: searchTerm, category: selectedCategory, city, minPrice: priceMin, maxPrice: priceMax, period: selectedPeriod }} onContact={(item) => {
+              if (!isAuthenticated) setShowLoginModal(true)
+              else alert('Contact owner for ' + (item.title || ''))
+            }} />
           </div>
         </section>
 
@@ -692,157 +585,63 @@ function App() {
         </div>
       </footer>
 
-      {showModal && (
-        <div className="modal-backdrop" onClick={() => setShowModal(false)}>
-          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+      <NewListingModal visible={showModal} onClose={() => setShowModal(false)} onCreate={handleCreateListing} />
+
+      {showLoginModal && (
+        <div className="modal-backdrop" onClick={() => setShowLoginModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div>
-                <span className="eyebrow">Yeni elan</span>
-                <h3>Kirayə obyektini əlavə et</h3>
+                <span className="eyebrow">{authMode === 'login' ? 'Daxil ol' : 'Qeydiyyat'}</span>
+                <h3>{authMode === 'login' ? 'Hesabınıza daxil olun' : 'Yeni hesab yaradın'}</h3>
               </div>
-              <button type="button" className="close-button" onClick={() => setShowModal(false)}>✕</button>
+              <button type="button" className="close-button" onClick={() => setShowLoginModal(false)}>✕</button>
             </div>
 
-            <div className="step-indicator">
-              <span className={wizardStep === 1 ? 'active' : ''}>1. Ümumi məlumat</span>
-              <span className={wizardStep === 2 ? 'active' : ''}>2. Kateqoriya sahələri</span>
+            <div className="form-box">
+              {authMode === 'signup' && (
+                <label className="field-block">
+                  <span>Ad / Soyad</span>
+                  <input value={authForm.fullName} onChange={(e) => setAuthForm((p) => ({ ...p, fullName: e.target.value }))} />
+                </label>
+              )}
+
+              <label className="field-block">
+                <span>Email / Telefon</span>
+                <input value={authForm.identifier} onChange={(e) => setAuthForm((p) => ({ ...p, identifier: e.target.value }))} />
+              </label>
+
+              <label className="field-block">
+                <span>Şifrə</span>
+                <input type="password" value={authForm.password} onChange={(e) => setAuthForm((p) => ({ ...p, password: e.target.value }))} />
+              </label>
+
+              {authMode === 'signup' && (
+                <label className="field-block">
+                  <span>Telefon</span>
+                  <input value={authForm.phone} onChange={(e) => setAuthForm((p) => ({ ...p, phone: e.target.value }))} />
+                </label>
+              )}
+
+              {authError && <p className="error">{authError}</p>}
+
+              <div className="modal-actions">
+                <button type="button" className="btn btn-ghost" onClick={() => setShowLoginModal(false)}>Ləğv et</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}>{authMode === 'login' ? 'Qeydiyyat' : 'Daxil ol'}</button>
+                <button type="button" className="btn btn-primary" onClick={async () => {
+                  setAuthError('')
+                  if (authMode === 'login') {
+                    const r = await (login ? login(authForm.identifier, authForm.password) : { success: false, message: 'Auth unavailable' })
+                    if (!r.success) setAuthError(r.message || 'Login failed')
+                    else setShowLoginModal(false)
+                  } else {
+                    const r = await (register ? register({ fullName: authForm.fullName, email: authForm.identifier, password: authForm.password, phone: authForm.phone }) : { success: false, message: 'Auth unavailable' })
+                    if (!r.success) setAuthError(r.message || 'Register failed')
+                    else setShowLoginModal(false)
+                  }
+                }}>{authMode === 'login' ? 'Giriş' : 'Qeydiyyat'}</button>
+              </div>
             </div>
-
-            {wizardStep === 1 ? (
-              <div className="form-box listing-form">
-                <div className="two-col-grid">
-                  <label className="field-block">
-                    <span>Başlıq</span>
-                    <input
-                      type="text"
-                      value={listingForm.title}
-                      onChange={(event) => setListingForm((prev) => ({ ...prev, title: event.target.value }))}
-                      placeholder="MacBook Pro M2 kirayə"
-                    />
-                  </label>
-
-                  <label className="field-block">
-                    <span>Kateqoriya</span>
-                    <select
-                      value={listingForm.category}
-                      onChange={(event) => {
-                        setListingForm((prev) => ({
-                          ...prev,
-                          category: event.target.value as ListingCategory,
-                        }))
-                      }}
-                    >
-                      {Object.entries(categoryConfig)
-                        .filter(([key]) => key !== 'all')
-                        .map(([key, config]) => (
-                          <option key={key} value={key}>{config.label}</option>
-                        ))}
-                    </select>
-                  </label>
-                </div>
-
-                <div className="two-col-grid">
-                  <label className="field-block">
-                    <span>Qiymət (AZN)</span>
-                    <input
-                      type="number"
-                      value={listingForm.price}
-                      onChange={(event) => setListingForm((prev) => ({ ...prev, price: event.target.value }))}
-                    />
-                  </label>
-
-                  <label className="field-block">
-                    <span>Kirayə tipi</span>
-                    <select
-                      value={listingForm.period}
-                      onChange={(event) => setListingForm((prev) => ({ ...prev, period: event.target.value as ListingPeriod }))}
-                    >
-                      <option value="daily">Günlük</option>
-                      <option value="weekly">Həftəlik</option>
-                      <option value="monthly">Aylıq</option>
-                      <option value="hourly">Saatlıq</option>
-                    </select>
-                  </label>
-                </div>
-
-                <div className="two-col-grid">
-                  <label className="field-block">
-                    <span>Şəhər</span>
-                    <select value={listingForm.city} onChange={(event) => setListingForm((prev) => ({ ...prev, city: event.target.value }))}>
-                      {cityOptions.map((city) => (
-                        <option key={city} value={city}>{city}</option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="field-block">
-                    <span>Rayon</span>
-                    <input
-                      type="text"
-                      value={listingForm.district}
-                      onChange={(event) => setListingForm((prev) => ({ ...prev, district: event.target.value }))}
-                      placeholder="Nəsimi"
-                    />
-                  </label>
-                </div>
-
-                <label className="field-block">
-                  <span>Şəkil URL</span>
-                  <input
-                    type="url"
-                    value={listingForm.image}
-                    onChange={(event) => setListingForm((prev) => ({ ...prev, image: event.target.value }))}
-                    placeholder="https://images.unsplash.com/..."
-                  />
-                </label>
-
-                <label className="field-block">
-                  <span>Təsvir</span>
-                  <textarea
-                    rows={4}
-                    value={listingForm.description}
-                    onChange={(event) => setListingForm((prev) => ({ ...prev, description: event.target.value }))}
-                    placeholder="Obyekt haqqında ətraflı məlumat..."
-                  />
-                </label>
-
-                <div className="modal-actions">
-                  <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Ləğv et</button>
-                  <button type="button" className="btn btn-primary" onClick={() => {
-                    if (listingForm.title.trim() && listingForm.description.trim() && listingForm.price) {
-                      setWizardStep(2)
-                      setError('')
-                    } else {
-                      setError('Başlıq, təsvir və qiymət tələb olunur.')
-                    }
-                  }}>
-                    Davam et
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="form-box listing-form">
-                {renderDynamicFormInputs()}
-
-                {(error || success) && (
-                  <div className="status-message">
-                    {error && <p className="error">{error}</p>}
-                    {success && <p className="success">{success}</p>}
-                  </div>
-                )}
-
-                <div className="modal-actions">
-                  <button type="button" className="btn btn-ghost" onClick={() => setWizardStep(1)}>Geri</button>
-                  <button type="button" className="btn btn-primary" onClick={() => {
-                    if (validateStep()) {
-                      handleCreateListing()
-                    }
-                  }}>
-                    Elanı dərc et
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -850,4 +649,12 @@ function App() {
   )
 }
 
-export default App
+export default function App() {
+  return (
+    <AuthProvider>
+      <ErrorBoundary>
+        <AppInner />
+      </ErrorBoundary>
+    </AuthProvider>
+  )
+}

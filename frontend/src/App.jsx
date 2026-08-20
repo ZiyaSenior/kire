@@ -1,3 +1,272 @@
+import React, { useState, useMemo } from 'react'
+import mockListings from './data/mockListings'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import AuthModal from './components/AuthModal'
+
+const CATEGORIES = [
+  { key: 'all', label: 'Bütün elanlar', icon: '📦' },
+  { key: 'Əmlak', label: 'Mənzillər', icon: '🏠' },
+  { key: 'Nəqliyyat', label: 'Avtomobillər', icon: '🚗' },
+  { key: 'Kompüterlər', label: 'Kompüterlər', icon: '💻' },
+  { key: 'Kitablar', label: 'Kitablar', icon: '📚' },
+  { key: 'Elektronika', label: 'Foto/Video', icon: '📷' },
+  { key: 'Alətlər', label: 'Alətlər', icon: '🔧' },
+  { key: 'Geyim', label: 'Geyim', icon: '👗' },
+]
+
+function PriceBadge({ price, period }) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e6e9ef', padding: 6, borderRadius: 6, fontWeight: 700 }}>
+      {price} AZN / {period}
+    </div>
+  )
+}
+
+function ListingCard({ item, onContact, onDelete, onToggleVIP, onApprove, isAdmin }) {
+  try {
+    return (
+      <div style={{ display: 'flex', gap: 12, padding: 12, background: '#fff', border: '1px solid #e6e9ef', borderRadius: 6 }}>
+        <img src={item?.image} alt={item?.title} style={{ width: 140, height: 90, objectFit: 'cover', borderRadius: 4 }} />
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>{item?.title}</div>
+              <div style={{ color: '#556', fontSize: 13 }}>{item?.district}, {item?.city}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <PriceBadge price={item?.price} period={item?.pricePeriod} />
+              <div style={{ marginTop: 6 }}>{item?.isVIP ? <span style={{ color: '#b76', fontWeight: 700 }}>Önə çıxan</span> : null}</div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <small style={{ color: '#888' }}>{new Date(item?.createdAt || Date.now()).toLocaleDateString()}</small>
+            <small style={{ background: '#eef2ff', padding: '2px 6px', borderRadius: 4 }}>{item?.category}</small>
+            <small style={{ color: '#999' }}>{item?.status}</small>
+          </div>
+
+          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+            <button className="btn" onClick={() => onContact?.(item)}>Əlaqə</button>
+            {isAdmin && (
+              <>
+                <button className="btn btn-ghost" onClick={() => onToggleVIP?.(item)}>{item?.isVIP ? 'VIP ləğv et' : 'VIP Et'}</button>
+                <button className="btn btn-danger" onClick={() => onDelete?.(item)}>Elanı Sil</button>
+                {item?.status === 'pending' ? (
+                  <button className="btn btn-primary" onClick={() => onApprove?.(item)}>Təsdiqlə</button>
+                ) : null}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  } catch (e) {
+    return null
+  }
+}
+
+function NewListingModal({ visible, onClose, onCreate, categories }) {
+  const { user } = useAuth() || {}
+  const [form, setForm] = useState({ title: '', description: '', category: categories?.[0]?.key || 'all', price: '', pricePeriod: 'gün', specs: {} })
+
+  if (!visible) return null
+
+  const category = form?.category
+
+  const categoryFields = {
+    'Kompüterlər': [ { key: 'model', label: 'Model' }, { key: 'ram', label: 'RAM' }, { key: 'storage', label: 'Yaddaş' }, { key: 'chip', label: 'Prosessor' } ],
+    'Kitablar': [ { key: 'bookTitle', label: 'Kitabın adı' }, { key: 'author', label: 'Müəllif' }, { key: 'genre', label: 'Janr' }, { key: 'language', label: 'Dil' } ],
+    'Əmlak': [ { key: 'rooms', label: 'Otaq sayı' }, { key: 'area_m2', label: 'Sahə (m2)' }, { key: 'floor', label: 'Mərtəbə' } ],
+    'Nəqliyyat': [ { key: 'make', label: 'Marka' }, { key: 'model', label: 'Model' }, { key: 'year', label: 'İl' }, { key: 'fuel', label: 'Yanacaq' } ],
+  }
+
+  const dynamic = categoryFields[category] ?? []
+
+  const update = (k, v) => setForm((p) => ({ ...p, [k]: v }))
+
+  const submit = (e) => {
+    e?.preventDefault()
+    if (!user) { alert('Zəhmət olmasa daxil olun'); return }
+    const created = {
+      id: 'new-' + Date.now(),
+      title: form?.title || '—',
+      description: form?.description || '',
+      category: form?.category,
+      price: Number(form?.price) || 0,
+      pricePeriod: form?.pricePeriod || 'gün',
+      period: form?.pricePeriod || 'gün',
+      image: form?.image || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=600',
+      city: form?.city || 'Bakı',
+      district: form?.district || 'Mərkəz',
+      createdAt: new Date().toISOString(),
+      isVIP: false,
+      ownerEmail: user?.email,
+      status: user?.email === 'safaraliyevziya@gmail.com' ? 'approved' : 'pending',
+      specs: { ...(form?.specs || {}) }
+    }
+    onCreate?.(created)
+    setForm({ title: '', description: '', category: categories?.[0]?.key || 'all', price: '', pricePeriod: 'gün', specs: {} })
+    onClose?.()
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <h3>Yeni Elan</h3>
+        <form className="form-box" onSubmit={submit}>
+          <label>Başlıq<input value={form.title} onChange={(e) => update('title', e.target.value)} /></label>
+          <label>Qiymət<input value={form.price} onChange={(e) => update('price', e.target.value)} /></label>
+          <label>Period<select value={form.pricePeriod} onChange={(e) => update('pricePeriod', e.target.value)}><option value="gün">gün</option><option value="ay">ay</option></select></label>
+          <label>Kateqoriya<select value={form.category} onChange={(e) => update('category', e.target.value)}>{categories?.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>
+
+          {dynamic.map((f) => (
+            <label key={f.key}>{f.label}<input value={form.specs?.[f.key] ?? ''} onChange={(e) => setForm((p) => ({ ...p, specs: { ...(p.specs || {}), [f.key]: e.target.value } }))} /></label>
+          ))}
+
+          <div className="modal-actions">
+            <button type="button" className="btn btn-ghost" onClick={onClose}>Ləğv et</button>
+            <button type="submit" className="btn btn-primary">Yayımla</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function AdminPanel({ listings, users, onDelete, onToggleVIP, onApprove }) {
+  return (
+    <div style={{ padding: 12, background: '#fff', border: '1px solid #e6e9ef', borderRadius: 8 }}>
+      <h3>Admin Panel</h3>
+      <h4>Gözləyən elanlar</h4>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {listings?.filter(l => l?.status === 'pending').map(l => (
+          <div key={l?.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>{l?.title} — {l?.category}</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary" onClick={() => onApprove?.(l)}>Təsdiqlə</button>
+              <button className="btn btn-danger" onClick={() => onDelete?.(l)}>İmtina et</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function AppInner() {
+  const { user, isAdmin } = useAuth() || {}
+  const [listings, setListings] = useState(() => {
+    try {
+      const persisted = JSON.parse(localStorage.getItem('multirent_user_listings') || '[]')
+      const base = Array.isArray(mockListings) ? mockListings : []
+      return Array.isArray(persisted) ? [...persisted, ...base] : base
+    } catch (e) {
+      return Array.isArray(mockListings) ? mockListings : []
+    }
+  })
+  const [query, setQuery] = useState('')
+  const [selectedCat, setSelectedCat] = useState('all')
+  const [showModal, setShowModal] = useState(false)
+  const [showAdmin, setShowAdmin] = useState(false)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+
+  const visible = useMemo(() => listings.filter(l => (selectedCat === 'all' || l?.category === selectedCat) && (!query || (l?.title || '').toLowerCase().includes(query.toLowerCase()))), [listings, selectedCat, query])
+
+  const handleCreate = (item) => {
+    // Prepend to in-memory list
+    setListings((p) => {
+      const next = [item, ...(Array.isArray(p) ? p : [])]
+      return next
+    })
+
+    // Persist user listings so they survive reloads
+    try {
+      const existing = JSON.parse(localStorage.getItem('multirent_user_listings') || '[]')
+      const next = [item, ...(Array.isArray(existing) ? existing : [])]
+      localStorage.setItem('multirent_user_listings', JSON.stringify(next))
+    } catch (err) {
+      console.warn('Failed to persist user listings', err)
+    }
+
+    // UX: notify, close modal handled by modal, and scroll to top to show the new listing
+    try {
+      alert('Elanınız uğurla yayınlandı!')
+    } catch (e) {}
+    try {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } catch (e) {}
+  }
+  const handleDelete = (item) => setListings((p) => p.filter((x) => x?.id !== item?.id))
+  const handleToggleVIP = (item) => setListings((p) => p.map((x) => x?.id === item?.id ? { ...x, isVIP: !x?.isVIP } : x))
+  const handleApprove = (item) => setListings((p) => p.map((x) => x?.id === item?.id ? { ...x, status: 'approved' } : x))
+
+  return (
+    <div style={{ background: '#f2f4f7', minHeight: '100vh', paddingBottom: 40 }}>
+      <header style={{ background: '#fff', borderBottom: '1px solid #e6e9ef', padding: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div style={{ fontSize: 22, fontWeight: 800 }}>Multirent</div>
+            <div style={{ fontSize: 14, color: '#444' }}>
+              {user ? (
+                <div>
+                  <span>👋 Xoş gəldiniz, {user?.fullName || user?.name || user?.email || 'İstifadəçi'}!</span>
+                  {user?.role === 'admin' ? <span style={{ marginLeft: 8 }}>👑 Admin</span> : null}
+                </div>
+              ) : (
+                <div>👋 Xoş gəldiniz, İstifadəçi!</div>
+              )}
+            </div>
+            <input placeholder="Axtarış" value={query} onChange={(e) => setQuery(e.target.value)} style={{ padding: 8, borderRadius: 6, border: '1px solid #e6e9ef' }} />
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {user ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div>{user?.fullName || user?.email}</div>
+                <div style={{ borderLeft: '1px solid #eee', paddingLeft: 8 }}>
+                  <button className="btn" onClick={() => setShowModal(true)}>+ Yeni Elan</button>
+                </div>
+                {isAdmin ? <button className="btn btn-ghost" onClick={() => setShowAdmin((s) => !s)}>Admin Panel</button> : null}
+              </div>
+            ) : (
+              <div>
+                <button className="btn btn-ghost" onClick={() => setShowAuthModal(true)}>Daxil ol / Qeydiyyat</button>
+                <button className="btn btn-primary" onClick={() => setShowAuthModal(true)}>+ Yeni Elan</button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <nav style={{ display: 'flex', gap: 12, marginTop: 12, overflowX: 'auto' }}>
+          {CATEGORIES.map((c) => (
+            <button key={c.key} onClick={() => setSelectedCat(c.key)} style={{ background: selectedCat === c.key ? '#eef' : 'transparent', border: 'none', padding: 8, borderRadius: 6 }}>{c.icon} {c.label}</button>
+          ))}
+        </nav>
+      </header>
+
+      <main style={{ maxWidth: 1100, margin: '20px auto', padding: 12 }}>
+        {isAdmin && showAdmin ? <AdminPanel listings={listings} onDelete={handleDelete} onApprove={handleApprove} /> : null}
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+          {visible.map((item) => (
+            <ListingCard key={item?.id} item={item} onContact={() => alert('Sahiblə əlaqə: ' + (item?.ownerEmail || '---'))} onDelete={handleDelete} onToggleVIP={handleToggleVIP} onApprove={handleApprove} isAdmin={isAdmin} />
+          ))}
+        </div>
+      </main>
+
+      <NewListingModal visible={showModal} onClose={() => setShowModal(false)} onCreate={handleCreate} categories={CATEGORIES} />
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+    </div>
+  )
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
+  )
+}
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { mockListings } from './data/mockListings'
 import './App.css'
