@@ -1,11 +1,17 @@
 const app = require('./app');
-const dotenv = require('dotenv');
 
-dotenv.config();
+class Server {
+  constructor(app, port) {
+    this.app = app;
+    this.port = port;
+  }
 
-const PORT = process.env.PORT || 5000;
+  start() {
+    this.app.listen(this.port, () => {
+      console.log(`Kire API server running on http://localhost:${this.port}`);
+      console.log(`Swagger docs: http://localhost:${this.port}/api-docs`);
+    });
+  }
+}
 
-app.listen(PORT, () => {
-  console.log(`Kire API server running on http://localhost:${PORT}`);
-  console.log(`Swagger docs: http://localhost:${PORT}/api-docs`);
-});
+new Server(app, process.env.PORT || 5000).start();

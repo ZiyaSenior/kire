@@ -1,10 +1,7 @@
 const express = require('express');
-const db = require('../config/db');
-const { protect, requireAdmin } = require('../middleware/authMiddleware');
+const { listingController, authMiddleware } = require('../container');
 
 const router = express.Router();
-
-const normalizeSearchText = (value = '') => String(value).trim().toLowerCase();
 
 /**
  * @openapi
@@ -16,46 +13,13 @@ const normalizeSearchText = (value = '') => String(value).trim().toLowerCase();
  *       200:
  *         description: Successful response
  */
-router.get('/', (req, res) => {
-  const { search, category, city, minPrice, maxPrice, listingType } = req.query;
-
-  const searchTerm = normalizeSearchText(search);
-  const categoryFilter = normalizeSearchText(category);
-  const cityFilter = normalizeSearchText(city);
-  const minPriceValue = minPrice !== undefined ? Number(minPrice) : null;
-  const maxPriceValue = maxPrice !== undefined ? Number(maxPrice) : null;
-  const listingTypeFilter = normalizeSearchText(listingType);
-
-  const filteredListings = db.listings.filter((listing) => {
-    const matchSearch = !searchTerm || [
-      listing.title,
-      listing.description,
-      listing.location,
-      listing.city,
-      listing.category
-    ].some((field) => String(field || '').toLowerCase().includes(searchTerm));
-
-    const matchCategory = !categoryFilter || normalizeSearchText(listing.category) === categoryFilter;
-    const matchCity = !cityFilter || normalizeSearchText(listing.city) === cityFilter;
-    const matchMinPrice = minPriceValue === null || Number(listing.price) >= minPriceValue;
-    const matchMaxPrice = maxPriceValue === null || Number(listing.price) <= maxPriceValue;
-    const matchType = !listingTypeFilter || normalizeSearchText(listing.listingType) === listingTypeFilter;
-
-    return matchSearch && matchCategory && matchCity && matchMinPrice && matchMaxPrice && matchType;
-  });
-
-  return res.json({
-    success: true,
-    count: filteredListings.length,
-    data: filteredListings
-  });
-});
+router.get('/', listingController.list);
 
 /**
  * @openapi
  * /api/listings:
  *   post:
- *     summary: Create a new listing
+ *     summary: Create a new listing (admin only)
  *     tags: [Listings]
  *     security:
  *       - bearerAuth: []
@@ -78,64 +42,26 @@ router.get('/', (req, res) => {
  *     responses:
  *       201:
  *         description: Listing created
+ *       403:
+ *         description: Admin access required
  */
-// Allow any authenticated user to create a listing (frontend will enforce further rules)
-router.post('/', protect, (req, res) => {
-  const { title, description, price, category, city, location, listingType } = req.body;
-
-  if (!title || !price || !category) {
-    return res.status(400).json({ success: false, message: 'title, price and category are required' });
-  }
-
-  const newListing = {
-    id: String(Date.now() + Math.random()),
-    title: String(title).trim(),
-    description: description || '',
-    price: Number(price),
-    category: String(category).trim(),
-    city: city || 'Bakı',
-    location: location || '',
-    listingType: listingType || 'rent',
-    owner: req.user.id,
-    createdAt: new Date().toISOString()
-  };
-
-  db.listings.push(newListing);
-  db.save();
-
-  return res.status(201).json({
-    success: true,
-    message: 'Listing created successfully',
-    data: newListing
-  });
-});
+router.post('/', authMiddleware.protect, authMiddleware.requireAdmin, listingController.create);
 
 /**
- * Suggest a category based on title/description keywords
+ * @openapi
+ * /api/listings/suggest-category:
+ *   get:
+ *     summary: Suggest a category based on title/description keywords
+ *     tags: [Listings]
+ *     parameters:
+ *       - in: query
+ *         name: text
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Suggested category
  */
-router.get('/suggest-category', (req, res) => {
-  const text = normalizeSearchText(req.query.text || '');
-
-  // Simple keyword-to-category mapping. Expand as needed.
-  const mapping = [
-    { keywords: ['mənzil', 'ev', 'otaq', 'villa', 'apart'], category: 'real-estate' },
-    { keywords: ['avtomobil', 'bmw', 'mers', 'toyota', 'nəqliyyat', 'maşın'], category: 'vehicles' },
-    { keywords: ['macbook', 'laptop', 'telefon', 'kamera', 'elektron', 'pc'], category: 'electronics' },
-    { keywords: ['stol', 'divan', 'mebel', 'bağ', 'bag'], category: 'home-garden' },
-    { keywords: ['paltar', 'geyim', 'don', 'accessor', 'aksesuar'], category: 'fashion-events' },
-    { keywords: ['kitab', 'roman', 'jurnal', 'hobbi', 'oyun'], category: 'books-hobbies' },
-    { keywords: ['servis', 'xidmət', 'alət', 'avadanlıq'], category: 'services-industrial' },
-  ];
-
-  for (const m of mapping) {
-    for (const kw of m.keywords) {
-      if (text.includes(kw)) {
-        return res.json({ success: true, category: m.category });
-      }
-    }
-  }
-
-  return res.json({ success: true, category: 'real-estate' });
-});
+router.get('/suggest-category', listingController.suggestCategory);
 
 module.exports = { listingRoutes: router };

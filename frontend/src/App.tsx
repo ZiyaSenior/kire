@@ -632,11 +632,11 @@ function AppInner() {
                   setAuthError('')
                   if (authMode === 'login') {
                     const r = await (login ? login(authForm.identifier, authForm.password) : { success: false, message: 'Auth unavailable' })
-                    if (!r.success) setAuthError(r.message || 'Login failed')
+                    if (!r.success) setAuthError(r.error || r.message || 'Login failed')
                     else setShowLoginModal(false)
                   } else {
                     const r = await (register ? register({ fullName: authForm.fullName, email: authForm.identifier, password: authForm.password, phone: authForm.phone }) : { success: false, message: 'Auth unavailable' })
-                    if (!r.success) setAuthError(r.message || 'Register failed')
+                    if (!r.success) setAuthError(r.error || r.message || 'Register failed')
                     else setShowLoginModal(false)
                   }
                 }}>{authMode === 'login' ? 'Giriş' : 'Qeydiyyat'}</button>
